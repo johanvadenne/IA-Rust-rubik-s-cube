@@ -43,6 +43,12 @@ impl RubiksCube {
             self.faces[bottom][2-layer][2-i] = self.faces[back][2-i][layer];
             self.faces[back][2-i][layer] = temp[i];
         }
+
+        if layer == 0 {
+            Self::rotate_face(&mut self.faces[1]);
+        } else if layer == 2 {
+            Self::rotate_face(&mut self.faces[3]);
+        }
     }
 
 
@@ -60,6 +66,12 @@ impl RubiksCube {
             self.faces[bottom][i][layer] = self.faces[back][2-i][2-layer];
             self.faces[back][2-i][2-layer] = temp[i][layer];
         }
+
+        if layer == 0 {
+            Self::rotate_face(&mut self.faces[0]);
+        } else if layer == 2 {
+            Self::rotate_face(&mut self.faces[2]);
+        }
     }
 
 
@@ -76,6 +88,21 @@ impl RubiksCube {
             self.faces[front][layer][i] = self.faces[bottom][layer][i];
             self.faces[bottom][layer][i] = self.faces[back][layer][i];
             self.faces[back][layer][i] = temp[i];
+        }
+
+        if layer == 0 {
+            Self::rotate_face(&mut self.faces[4]);
+        } else if layer == 2 {
+            Self::rotate_face(&mut self.faces[5]);
+        }
+    }
+
+    fn rotate_face(face: &mut [[Color; 3]; 3]) {
+        let mut temp = *face;
+        for i in 0..3 {
+            for j in 0..3 {
+                face[j][2 - i] = temp[i][j];
+            }
         }
     }
 
@@ -153,14 +180,27 @@ fn main() {
 
     // Effectuer une rotation sur chaque axe
     println!("\nRotation X:");
-    cube.rotate_y(1);
-    // Effectuer une rotation sur chaque axe
-    println!("\nRotation X:");
-    cube.rotate_y(2);
+    cube.rotate_x(1);
+    cube.rotate_x(2);
+    cube.rotate_x(0);
     cube.display();
+
     // Effectuer une rotation sur chaque axe
-    println!("\nRotation X:");
+    println!("\nRotation Y:");
+    cube.rotate_y(1);
+    cube.rotate_y(2);
     cube.rotate_y(0);
+    cube.display();
+
+    println!("\nRotation Z:");
+    cube.rotate_z(1);
+    cube.rotate_z(2);
+    cube.rotate_z(0);
     cube.display();
     
 }
+
+
+//    🔴
+// ⚪🔵🟡🟢
+//    🟠

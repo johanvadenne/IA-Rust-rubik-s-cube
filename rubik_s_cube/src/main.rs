@@ -52,22 +52,13 @@ impl RubiksCube {
     fn rotate_y(&mut self, layer: usize) {
         // Rotation logic on X-axis for specified layer
         let (front, back, top, bottom) = (1,3,4,5);
-        let temp = self.faces[top][layer];
+        let temp = self.faces[top];
 
         for i in 0..3 {
-            if i == 0 || i == 2 {
-                self.faces[top][i][layer] = self.faces[front][i][layer];
-                self.faces[front][i][layer] = self.faces[bottom][i][layer];
-                self.faces[bottom][i][layer] = self.faces[back][i][layer];
-                self.faces[back][i][layer] = temp[i];
-
-            }
-            else {
-                self.faces[top][layer][i] = self.faces[front][layer][i];
-                self.faces[front][layer][i] = self.faces[bottom][layer][i];
-                self.faces[bottom][layer][i] = self.faces[back][layer][i];
-                self.faces[back][layer][i] = temp[i];
-            }
+            self.faces[top][i][layer] = self.faces[front][i][layer];
+            self.faces[front][i][layer] = self.faces[bottom][i][layer];
+            self.faces[bottom][i][layer] = self.faces[back][2-i][2-layer];
+            self.faces[back][2-i][2-layer] = temp[i][layer];
         }
     }
 
@@ -162,15 +153,14 @@ fn main() {
 
     // Effectuer une rotation sur chaque axe
     println!("\nRotation X:");
-    cube.rotate_x(1);
+    cube.rotate_y(1);
+    // Effectuer une rotation sur chaque axe
+    println!("\nRotation X:");
+    cube.rotate_y(2);
     cube.display();
     // Effectuer une rotation sur chaque axe
     println!("\nRotation X:");
-    cube.rotate_x(2);
-    cube.display();
-    // Effectuer une rotation sur chaque axe
-    println!("\nRotation X:");
-    cube.rotate_x(0);
+    cube.rotate_y(0);
     cube.display();
     
 }

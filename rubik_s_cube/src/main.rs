@@ -1,4 +1,4 @@
-use std::path::Display;
+// use std::path::Display;
 
 use rand::Rng;
 
@@ -44,14 +44,14 @@ impl RubiksCube {
         for i in 0..3 {
             self.faces[top][layer][i] = self.faces[front][2-i][layer];
             self.faces[front][2-i][layer] = self.faces[bottom][2-layer][2-i];
-            self.faces[bottom][2-layer][2-i] = self.faces[back][2-i][2-layer];
-            self.faces[back][2-i][2-layer] = temp[i];
+            self.faces[bottom][2-layer][2-i] = self.faces[back][i][2-layer];
+            self.faces[back][i][2-layer] = temp[i];
         }
 
         if layer == 0 {
-            Self::rotate_face(&mut self.faces[3], true);
+            Self::rotate_face(&mut self.faces[3], false);
         } else if layer == 2 {
-            Self::rotate_face(&mut self.faces[1], false);
+            Self::rotate_face(&mut self.faces[1], true);
         }
     }
 
@@ -74,7 +74,7 @@ impl RubiksCube {
         if layer == 0 {
             Self::rotate_face(&mut self.faces[0], false);
         } else if layer == 2 {
-            Self::rotate_face(&mut self.faces[2], true);
+            Self::rotate_face(&mut self.faces[2], false);
         }
     }
 
@@ -102,7 +102,7 @@ impl RubiksCube {
     }
 
     fn rotate_face(face: &mut [[Color; 3]; 3], sens_aiguille: bool) {
-        let mut temp = *face;
+        let temp = *face;
         
         if sens_aiguille {
             for i in 0..3 {
@@ -114,15 +114,15 @@ impl RubiksCube {
         else {
             for i in 0..3 {
                 for j in 0..3 {
-                    face[j][i] = temp[i][j];
+                    face[j][i] = temp[i][2-j];
                 }
             }
         }
     }
 
-    fn display(&self) {
-        println!("{:?}", self.faces);
-    }
+    // fn display(&self) {
+    //     println!("{:?}", self.faces);
+    // }
 
     fn display_color(&self) {
         
@@ -175,7 +175,7 @@ impl RubiksCube {
         }
     }
 
-    fn reward(&self) -> i32 {
+    fn _reward(&self) -> i32 {
         // Reward based on number of completed rows of same color
         let mut score = 0;
         for face in &self.faces {
@@ -188,7 +188,7 @@ impl RubiksCube {
         score
     }
 
-    fn is_solved(&self) -> bool {
+    fn _is_solved(&self) -> bool {
         self.faces.iter().all(|face| {
             face.iter().all(|row| row.iter().all(|&color| color == face[0][0]))
         })
@@ -212,10 +212,10 @@ impl RubiksCube {
 fn main() {
 
     let mut cube = RubiksCube::new();
-    for i in 0..3 {
-        cube.random_move()
+    for _ in 0..1000 {
+        cube.random_move();
     }
-
+    
     cube.display_color();
     
 }

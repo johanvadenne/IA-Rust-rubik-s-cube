@@ -1,4 +1,8 @@
-#[derive(Debug, Clone, Copy)]
+use std::path::Display;
+
+use rand::Rng;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Color {
     White,
     Blue,
@@ -40,14 +44,14 @@ impl RubiksCube {
         for i in 0..3 {
             self.faces[top][layer][i] = self.faces[front][2-i][layer];
             self.faces[front][2-i][layer] = self.faces[bottom][2-layer][2-i];
-            self.faces[bottom][2-layer][2-i] = self.faces[back][2-i][layer];
-            self.faces[back][2-i][layer] = temp[i];
+            self.faces[bottom][2-layer][2-i] = self.faces[back][2-i][2-layer];
+            self.faces[back][2-i][2-layer] = temp[i];
         }
 
         if layer == 0 {
-            Self::rotate_face(&mut self.faces[1]);
+            Self::rotate_face(&mut self.faces[3], true);
         } else if layer == 2 {
-            Self::rotate_face(&mut self.faces[3]);
+            Self::rotate_face(&mut self.faces[1], false);
         }
     }
 
@@ -68,9 +72,9 @@ impl RubiksCube {
         }
 
         if layer == 0 {
-            Self::rotate_face(&mut self.faces[0]);
+            Self::rotate_face(&mut self.faces[0], false);
         } else if layer == 2 {
-            Self::rotate_face(&mut self.faces[2]);
+            Self::rotate_face(&mut self.faces[2], true);
         }
     }
 
@@ -91,17 +95,27 @@ impl RubiksCube {
         }
 
         if layer == 0 {
-            Self::rotate_face(&mut self.faces[4]);
+            Self::rotate_face(&mut self.faces[4], false);
         } else if layer == 2 {
-            Self::rotate_face(&mut self.faces[5]);
+            Self::rotate_face(&mut self.faces[5], true);
         }
     }
 
-    fn rotate_face(face: &mut [[Color; 3]; 3]) {
+    fn rotate_face(face: &mut [[Color; 3]; 3], sens_aiguille: bool) {
         let mut temp = *face;
-        for i in 0..3 {
-            for j in 0..3 {
-                face[j][2 - i] = temp[i][j];
+        
+        if sens_aiguille {
+            for i in 0..3 {
+                for j in 0..3 {
+                    face[j][2 - i] = temp[i][j];
+                }
+            }
+        } 
+        else {
+            for i in 0..3 {
+                for j in 0..3 {
+                    face[j][i] = temp[i][j];
+                }
             }
         }
     }
@@ -109,98 +123,99 @@ impl RubiksCube {
     fn display(&self) {
         println!("{:?}", self.faces);
     }
+
+    fn display_color(&self) {
+        
+        for lign in self.faces[4] {
+            print!("⬛⬛⬛");
+            for color in lign {
+                match color {
+                    Color::White => print!("⬜"),
+                    Color::Blue => print!("🟦"),
+                    Color::Yellow => print!("🟨"),
+                    Color::Green => print!("🟩"),
+                    Color::Red => print!("🟥"),
+                    _ => print!("🟧"),
+                }
+            }
+            print!("⬛⬛⬛⬛⬛⬛");
+            println!();
+        }
+
+        for i in 0..3 {
+            for j in 0..4 {
+                for k in 0..3 {
+                    match self.faces[j][i][k] {
+                        Color::White => print!("⬜"),
+                        Color::Blue => print!("🟦"),
+                        Color::Yellow => print!("🟨"),
+                        Color::Green => print!("🟩"),
+                        Color::Red => print!("🟥"),
+                        _ => print!("🟧"),
+                    }
+                }
+            }
+            println!();
+        }
+        
+        for lign in self.faces[5] {
+            print!("⬛⬛⬛");
+            for color in lign {
+                match color {
+                    Color::White => print!("⬜"),
+                    Color::Blue => print!("🟦"),
+                    Color::Yellow => print!("🟨"),
+                    Color::Green => print!("🟩"),
+                    Color::Red => print!("🟥"),
+                    _ => print!("🟧"),
+                }
+            }
+            print!("⬛⬛⬛⬛⬛⬛");
+            println!();
+        }
+    }
+
+    fn reward(&self) -> i32 {
+        // Reward based on number of completed rows of same color
+        let mut score = 0;
+        for face in &self.faces {
+            for row in face.iter() {
+                if row.iter().all(|&color| color == row[0]) {
+                    score += 1;
+                }
+            }
+        }
+        score
+    }
+
+    fn is_solved(&self) -> bool {
+        self.faces.iter().all(|face| {
+            face.iter().all(|row| row.iter().all(|&color| color == face[0][0]))
+        })
+    }
+
+    fn random_move(&mut self) {
+        let mut rng = rand::thread_rng();
+        let axis = rng.gen_range(0..3);
+        let layer = rng.gen_range(0..3);
+    
+        match axis {
+            0 => self.rotate_x(layer),
+            1 => self.rotate_y(layer),
+            _ => self.rotate_z(layer),
+        }
+    }
 }
+
+
 
 fn main() {
-    // let list_color = ['W','B','Y','G','R','O'];
-    // let mut rubikscube: [[[char; 3]; 3]; 6] = [[['_';3];3];6];
-    // let mut rubikscube_ligne_x: [[[char; 3]; 3]; 4] = [[['_';3];3];4];
-    // let mut rubikscube_ligne_y: [[[char; 3]; 3]; 4] = [[['_';3];3];4];
-    // let mut rubikscube_ligne_z: [[[char; 3]; 3]; 4] = [[['_';3];3];4];
-
-
-    // //   1
-    // // 1 1 1 1
-    // //   1
-    // for i in 0..list_color.len() {
-    //     rubikscube[i] = [[list_color[i]; 3]; 3];
-    // }
-
-    // //   0
-    // // 1 1 1 1
-    // //   0
-    // for i in 0..rubikscube.len() - 2 {
-    //     for j in 0..rubikscube[i].len() {
-    //         for k in 0..rubikscube[i][j].len() {
-    //             rubikscube_ligne_z[i][j][k] = rubikscube[i][j][k];
-    //         }
-    //     }
-    // }
-
-    // //   1
-    // // 0 1 0 1
-    // //   1
-    // let ind_couleur_y: [usize; 4] = [1,3,4,5];
-    // for i in 0..rubikscube.len() - 2 {
-    //     for j in 0..rubikscube[i].len() {
-    //         for k in 0..rubikscube[i][j].len() {
-    //             rubikscube_ligne_y[i][j][k] = rubikscube[ind_couleur_y[i]][k][j];
-    //         }
-    //     }
-    // }
-
-    // //   1
-    // // 1 0 1 0
-    // //   1
-    // let ind_couleur_x: [usize; 4] = [0,2,4,5];
-    // for i in 0..rubikscube.len() - 2 {
-    //     for j in 0..rubikscube[i].len() {
-    //         for k in 0..rubikscube[i][j].len() {
-    //             if i == 0 || i == 2 {
-    //                 rubikscube_ligne_x[i][j][k] = rubikscube[ind_couleur_x[i]][k][j];
-
-    //             }
-    //             else {
-    //                 rubikscube_ligne_x[i][j][k] = rubikscube[ind_couleur_x[i]][j][k];
-    //             }
-    //         }
-    //     }
-    // }
-    
-    // println!("{rubikscube:?}");
-    // println!("{rubikscube_ligne_z:?}");
-    // println!("{rubikscube_ligne_y:?}");
-    // println!("{rubikscube_ligne_x:?}");
 
     let mut cube = RubiksCube::new();
-    
-    // Afficher le cube initial
-    println!("Cube initial:");
-    cube.display();
+    for i in 0..3 {
+        cube.random_move()
+    }
 
-    // Effectuer une rotation sur chaque axe
-    println!("\nRotation X:");
-    cube.rotate_x(1);
-    cube.rotate_x(2);
-    cube.rotate_x(0);
-    cube.display();
-
-    // Effectuer une rotation sur chaque axe
-    println!("\nRotation Y:");
-    cube.rotate_y(1);
-    cube.rotate_y(2);
-    cube.rotate_y(0);
-    cube.display();
-
-    println!("\nRotation Z:");
-    cube.rotate_z(1);
-    cube.rotate_z(2);
-    cube.rotate_z(0);
-    cube.display();
+    cube.display_color();
     
 }
-
-
-//    🔴
-// ⚪🔵🟡🟢
-//    🟠

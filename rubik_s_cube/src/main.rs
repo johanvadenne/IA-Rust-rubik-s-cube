@@ -74,7 +74,7 @@ impl RubiksCube {
         if layer == 0 {
             Self::rotate_face(&mut self.faces[0], false);
         } else if layer == 2 {
-            Self::rotate_face(&mut self.faces[2], false);
+            Self::rotate_face(&mut self.faces[2], true);
         }
     }
 
@@ -175,23 +175,69 @@ impl RubiksCube {
         }
     }
 
-    fn _reward(&self) -> i32 {
-        // Reward based on number of completed rows of same color
+    fn _reward(&self) {
+        
+
+        // Attention ne pas donnée de récompense si la combinaison à déjà été trouvé au moin une dans le puzzle d'un rubik's cube
+
+        // à répéter pour chaque nouvelle combinaison trouver
+
+            // 2 couleur aligner + bonus si les couleur sont bien positioner
+
+            // 3 couleur aligner + bonus si les couleur sont bien positioner
+
+            // 3 + 1 couleur alignner + bonus si les couleur sont bien positioner
+
+            // 3 + 2 couleur alignner + bonus si les couleur sont bien positioner
+
+            // 3 + 3 couleur aligner + bonus si les couleur sont bien positioner
+
+            // 3 + 3 + 1 couleur alignner + bonus si les couleur sont bien positioner
+
+            // 3 + 3 + 2 couleur alignner + bonus si les couleur sont bien positioner
+
+            // i face couleur aligner + bonus si les couleur sont bien positioner
+
+
+    }
+
+
+    // Fonction de récompense
+    fn calculate_reward(&self) -> i32 {
         let mut score = 0;
+
         for face in &self.faces {
+            // 1. Vérifier l'alignement des lignes sur chaque face
             for row in face.iter() {
-                if row.iter().all(|&color| color == row[0]) {
-                    score += 1;
-                }
+                let row_score = self.calculate_alignment(row);
+                score += row_score;
+            }
+
+            // 2. Vérifier l'alignement des colonnes
+            for col in 0..3 {
+                let column = [face[0][col], face[1][col], face[2][col]];
+                let column_score = self.calculate_alignment(&column);
+                score += column_score;
+            }
+
+            // 3. Bonus de face complète
+            if face.iter().all(|row| row.iter().all(|&color| color == face[0][0])) {
+                score += 10; // Bonus pour une face complète
             }
         }
+        
         score
     }
 
-    fn _is_solved(&self) -> bool {
-        self.faces.iter().all(|face| {
-            face.iter().all(|row| row.iter().all(|&color| color == face[0][0]))
-        })
+    // Calculer les points d'alignement d'une ligne ou d'une colonne
+    fn calculate_alignment(&self, line: &[Color; 3]) -> i32 {
+        if line[0] == line[1] && line[1] == line[2] {
+            3 // 3 cases alignées
+        } else if line[0] == line[1] || line[1] == line[2] {
+            1 // 2 cases alignées
+        } else {
+            0 // Pas d'alignement
+        }
     }
 
     fn random_move(&mut self) {
@@ -212,9 +258,12 @@ impl RubiksCube {
 fn main() {
 
     let mut cube = RubiksCube::new();
-    for _ in 0..1000 {
+    let mut reward = 0;
+    for _ in 0..10000 {
         cube.random_move();
+        reward += cube.calculate_reward();
     }
+    println!("Score de récompense: {}", reward);
     
     cube.display_color();
     

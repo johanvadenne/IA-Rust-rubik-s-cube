@@ -1,8 +1,7 @@
-// use std::path::Display;
-
 use rand::Rng;
+use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
 enum Color {
     White,
     Blue,
@@ -201,43 +200,37 @@ impl RubiksCube {
 
     }
 
+    fn alignement_face(&mut self) {
 
-    // Fonction de récompense
-    fn calculate_reward(&self) -> i32 {
-        let mut score = 0;
+        let mut color_count: HashMap<Color, usize> = HashMap::new();
 
-        for face in &self.faces {
-            // 1. Vérifier l'alignement des lignes sur chaque face
+        for face in self.faces {
+            
             for row in face.iter() {
-                let row_score = self.calculate_alignment(row);
-                score += row_score;
+                for &color in row.iter() {
+                    *color_count.entry(color).or_insert(0) += 1;
+                }
             }
 
-            // 2. Vérifier l'alignement des colonnes
-            for col in 0..3 {
-                let column = [face[0][col], face[1][col], face[2][col]];
-                let column_score = self.calculate_alignment(&column);
-                score += column_score;
+            let mut number_max = 0;
+            for (_color, nbr) in &color_count {
+                if nbr > &number_max {
+                    number_max = nbr.clone();
+                }
             }
 
-            // 3. Bonus de face complète
-            if face.iter().all(|row| row.iter().all(|&color| color == face[0][0])) {
-                score += 10; // Bonus pour une face complète
+            for (color, nbr) in &color_count {
+                if nbr == &number_max {
+                    Self::check_aligement(&face, &color);
+                }
             }
+
         }
-        
-        score
+
     }
 
-    // Calculer les points d'alignement d'une ligne ou d'une colonne
-    fn calculate_alignment(&self, line: &[Color; 3]) -> i32 {
-        if line[0] == line[1] && line[1] == line[2] {
-            3 // 3 cases alignées
-        } else if line[0] == line[1] || line[1] == line[2] {
-            1 // 2 cases alignées
-        } else {
-            0 // Pas d'alignement
-        }
+    fn check_aligement(face: &[[Color; 3]; 3], color: &Color) {
+        
     }
 
     fn random_move(&mut self) {

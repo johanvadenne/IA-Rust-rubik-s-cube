@@ -231,6 +231,69 @@ impl RubiksCube {
 
     fn check_aligement(face: &[[Color; 3]; 3], color: &Color) {
         
+        let mut vec_color: Vec<Vec<usize>> = Vec::new(); 
+        let mut resulat_combinaison: HashMap<Vec<usize> ,Vec<Vec<Vec<usize>>>> = HashMap::new();
+
+        for i in 0..face.len() {
+            for j in 0..face[i].len() {
+                let position_color: Vec<usize> = vec![i,j];
+                if face[i][j] == *color && !vec_color.contains(&position_color) {
+                    
+
+                    let mut combinaison: Vec<Vec<Vec<usize>>> = vec![vec![vec![i,j]],vec![vec![i,j]],vec![vec![i,j]],vec![vec![i,j]]];
+                    vec_color.push(position_color);
+
+                    Self::check_combinaison(face, &mut combinaison, color, i, j);
+
+                    resulat_combinaison.entry(vec![i,j]).or_insert(combinaison);
+
+                }
+            }
+        }
+
+    }
+
+    fn check_combinaison(face: &[[Color; 3]; 3], combinaison: &mut Vec<Vec<Vec<usize>>>, color: &Color, i: usize, j: usize) {
+        // droite
+        let mut x = j.clone();
+        while x+1 <= 2 {
+            x+=1;
+            if face[i][x] == *color {
+                combinaison[0].push(vec![i,x]);
+            }
+        }
+
+        // gauche
+        let mut x = j.clone();
+        while x-1 >= 2 {
+            x-=1;
+            if face[i][x] == *color {
+                combinaison[1].push(vec![i,x]);
+            }
+        }
+
+        // bas
+        let mut y = j.clone();
+        while y+1 <= 2 {
+            y+=1;
+            if face[y][j] == *color {
+                combinaison[2].push(vec![y,j]);
+            }
+        }
+
+        // haut
+        let mut y = j.clone();
+        while y-1 >= 2 {
+            y-=1;
+            if face[y][j] == *color {
+                combinaison[3].push(vec![y,j]);
+            }
+        }
+    }
+
+    
+    fn calculate_reward() {
+
     }
 
     fn random_move(&mut self) {

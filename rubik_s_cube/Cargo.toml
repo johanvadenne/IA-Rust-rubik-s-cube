@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+burn = { version = "0.16", features = ["ndarray", "train"] }
+clap = { version = "4", features = ["derive"] }
+minifb = "0.27"
 rand = "0.8.5"

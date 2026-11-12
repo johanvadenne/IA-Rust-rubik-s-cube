@@ -1,375 +1,202 @@
-use rand::Rng;
+use std::path::PathBuf;
 use std::time::Instant;
-// use std::time::Duration;
-// use std::thread;
 
-#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
-enum Color {
-    White,
-    Blue,
-    Yellow,
-    Green,
-    Red,
-    Orange,
+use clap::{Parser, Subcommand};
+use rand::Rng;
+use rubik_s_cube::{
+    animate_solution, load_model, solve, train, Move, RubiksCube, SolveConfig, TrainConfig,
+};
+
+#[derive(Parser, Debug)]
+#[command(name = "rubik_s_cube", about = "Solve a Rubik's cube with a learned value network")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
 }
 
-
-#[derive(Debug, Clone, PartialEq)]
-struct RubiksCube {
-    faces: [[[Color; 3]; 3]; 6],
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Train the value network with a scramble-depth curriculum.
+    Train {
+        /// Maximum scramble depth in the curriculum.
+        #[arg(long, default_value_t = 8)]
+        max_depth: usize,
+        /// Samples generated per curriculum depth.
+        #[arg(long, default_value_t = 2048)]
+        samples: usize,
+        /// Epochs per curriculum depth.
+        #[arg(long, default_value_t = 4)]
+        epochs: usize,
+        /// Mini-batch size.
+        #[arg(long, default_value_t = 128)]
+        batch_size: usize,
+        /// Learning rate.
+        #[arg(long, default_value_t = 1e-3)]
+        lr: f64,
+        /// Directory for checkpoints.
+        #[arg(long, default_value = "models")]
+        out: String,
+    },
+    /// Scramble then solve a cube using a trained model.
+    Solve {
+        /// Number of random scramble moves.
+        #[arg(long, default_value_t = 5)]
+        depth: usize,
+        /// Path to model file without extension (e.g. models/value_v1).
+        #[arg(long, default_value = "models/value_v1")]
+        model: PathBuf,
+        /// Max A* expansions.
+        #[arg(long, default_value_t = 50_000)]
+        max_nodes: usize,
+        /// Heuristic weight for weighted A*.
+        #[arg(long, default_value_t = 1.0)]
+        weight: f32,
+        /// Open a window and animate the solution.
+        #[arg(long, default_value_t = false)]
+        visual: bool,
+        /// Delay between animated moves (ms).
+        #[arg(long, default_value_t = 350)]
+        delay_ms: u64,
+    },
+    /// Train briefly then run a short solve demo.
+    Demo {
+        /// Scramble depth for the demo solve.
+        #[arg(long, default_value_t = 4)]
+        depth: usize,
+        /// Curriculum max depth for the quick training.
+        #[arg(long, default_value_t = 5)]
+        train_depth: usize,
+        /// Skip the visual window.
+        #[arg(long, default_value_t = false)]
+        no_visual: bool,
+        /// Delay between animated moves (ms).
+        #[arg(long, default_value_t = 350)]
+        delay_ms: u64,
+    },
 }
 
-#[derive(Debug, Clone)]
-struct CoupRubiksCube {
-    prec_tour: i32, 
-    prec_axis: i32, 
-    prec_lign: usize
+fn format_moves(moves: &[Move]) -> String {
+    moves
+        .iter()
+        .map(|m| m.label())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
-#[derive(Debug, Clone)]
-struct DataRubiksCube {
-    rubikscube: RubiksCube,
-    coups: Vec<CoupRubiksCube>
-}
+fn run_solve(
+    depth: usize,
+    model_path: &PathBuf,
+    max_nodes: usize,
+    weight: f32,
+    visual: bool,
+    delay_ms: u64,
+) {
+    let device = Default::default();
+    let model = load_model(model_path, &device);
 
+    let mut rng = rand::thread_rng();
+    let mut cube = RubiksCube::new();
+    let scramble = cube.scramble(depth, &mut rng);
 
-//    🔴
-// ⚪🔵🟡🟢
-//    🟠
-impl RubiksCube {
-    fn new() -> Self {
-        let faces = [
-            [[Color::White; 3]; 3],
-            [[Color::Blue; 3]; 3],
-            [[Color::Yellow; 3]; 3],
-            [[Color::Green; 3]; 3],
-            [[Color::Red; 3]; 3],
-            [[Color::Orange; 3]; 3],
-        ];
-        Self { faces }
-    }
-
-    //   1
-    // 1 0 1 0
-    //   1
-    fn rotate_x(&mut self, layer: usize) {
-        // Rotation logic on X-axis for specified layer
-        let (front, back, top, bottom) = (0, 2, 4, 5);
-        let temp = self.faces[top][layer];
-        
-        for i in 0..3 {
-            self.faces[top][layer][i] = self.faces[front][2-i][layer];
-            self.faces[front][2-i][layer] = self.faces[bottom][2-layer][2-i];
-            self.faces[bottom][2-layer][2-i] = self.faces[back][i][2-layer];
-            self.faces[back][i][2-layer] = temp[i];
-        }
-
-        if layer == 0 {
-            Self::rotate_face(&mut self.faces[3], false);
-        } else if layer == 2 {
-            Self::rotate_face(&mut self.faces[1], true);
-        }
-    }
-
-
-    //   1
-    // 0 1 0 1
-    //   1
-    fn rotate_y(&mut self, layer: usize) {
-        // Rotation logic on X-axis for specified layer
-        let (front, back, top, bottom) = (1,3,4,5);
-        let temp = self.faces[top];
-
-        for i in 0..3 {
-            self.faces[top][i][layer] = self.faces[front][i][layer];
-            self.faces[front][i][layer] = self.faces[bottom][i][layer];
-            self.faces[bottom][i][layer] = self.faces[back][2-i][2-layer];
-            self.faces[back][2-i][2-layer] = temp[i][layer];
-        }
-
-        if layer == 0 {
-            Self::rotate_face(&mut self.faces[0], false);
-        } else if layer == 2 {
-            Self::rotate_face(&mut self.faces[2], true);
-        }
-    }
-
-
-    //   0
-    // 1 1 1 1
-    //   0
-    fn rotate_z(&mut self, layer: usize) {
-        // Rotation logic on X-axis for specified layer
-        let (front, back, top, bottom) = (0,2,1,3);
-        let temp = self.faces[top][layer];
-
-        for i in 0..3 {
-            self.faces[top][layer][i] = self.faces[front][layer][i];
-            self.faces[front][layer][i] = self.faces[bottom][layer][i];
-            self.faces[bottom][layer][i] = self.faces[back][layer][i];
-            self.faces[back][layer][i] = temp[i];
-        }
-
-        if layer == 0 {
-            Self::rotate_face(&mut self.faces[4], false);
-        } else if layer == 2 {
-            Self::rotate_face(&mut self.faces[5], true);
-        }
-    }
-
-    fn rotate_face(face: &mut [[Color; 3]; 3], sens_aiguille: bool) {
-        let temp = *face;
-        
-        if sens_aiguille {
-            for i in 0..3 {
-                for j in 0..3 {
-                    face[j][2 - i] = temp[i][j];
-                }
-            }
-        } 
-        else {
-            for i in 0..3 {
-                for j in 0..3 {
-                    face[j][i] = temp[i][2-j];
-                }
-            }
-        }
-    }
-
-    fn display_color(&self) {
-
-        print!("\x1B[2J\x1B[H");
-
-        for lign in self.faces[4] {
-            print!("⬛⬛⬛");
-            for color in lign {
-                match color {
-                    Color::White => print!("⬜"),
-                    Color::Blue => print!("🟦"),
-                    Color::Yellow => print!("🟨"),
-                    Color::Green => print!("🟩"),
-                    Color::Red => print!("🟥"),
-                    _ => print!("🟧"),
-                }
-            }
-            print!("⬛⬛⬛⬛⬛⬛");
-            println!();
-        }
-
-        for i in 0..3 {
-            for j in 0..4 {
-                for k in 0..3 {
-                    match self.faces[j][i][k] {
-                        Color::White => print!("⬜"),
-                        Color::Blue => print!("🟦"),
-                        Color::Yellow => print!("🟨"),
-                        Color::Green => print!("🟩"),
-                        Color::Red => print!("🟥"),
-                        _ => print!("🟧"),
-                    }
-                }
-            }
-            println!();
-        }
-        
-        for lign in self.faces[5] {
-            print!("⬛⬛⬛");
-            for color in lign {
-                match color {
-                    Color::White => print!("⬜"),
-                    Color::Blue => print!("🟦"),
-                    Color::Yellow => print!("🟨"),
-                    Color::Green => print!("🟩"),
-                    Color::Red => print!("🟥"),
-                    _ => print!("🟧"),
-                }
-            }
-            print!("⬛⬛⬛⬛⬛⬛");
-            println!();
-        }
-    }
-
-    fn random_move(&mut self) {
-        let mut rng = rand::thread_rng();
-        let axis = rng.gen_range(0..3);
-        let layer = rng.gen_range(0..3);
-    
-        match axis {
-            0 => self.rotate_x(layer),
-            1 => self.rotate_y(layer),
-            _ => self.rotate_z(layer),
-        }
-    }
-
-    fn point(&mut self) -> i128 {
-
-        let mut nbr_point: i128 = 0;
-        let mut point_attribuet: i128 = 1;
-        let mut point_ok = false;
-
-        for i in 0..self.faces.len() {
-
-            if point_ok {
-                point_ok = false;
-                point_attribuet *= 10;
-            }
-
-            for j in 0..self.faces[i].len() {
-                for k in 0..self.faces[i][j].len() {
-                    let mut multiplicateur: i128 = 1;
-
-                    for l in 0..3-(k+1) {
-                        if self.faces[i][j][k] == self.faces[i][j][k+l+1] {
-                            nbr_point += point_attribuet * multiplicateur;
-                            multiplicateur*=10;
-                            point_ok = true;
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                    
-                    for l in 0..3-(j+1) {
-                        if self.faces[i][j][k] == self.faces[i][j+l+1][k] {
-                            nbr_point += point_attribuet * multiplicateur;
-                            multiplicateur*=10;
-                            point_ok = true;
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        nbr_point
-    }
-
-    fn prevision(&mut self,vec_rubikscuble: Vec<DataRubiksCube>, vec_rubikscuble_noire: &Vec<RubiksCube>, check: bool) -> (i128, i32, i32, usize, Vec<DataRubiksCube>, DataRubiksCube) {
-
-        let mut best_tour = 0;
-        let mut best_axis = 0;
-        let mut best_lign = 0;
-        let mut best_point = 0;
-        let mut vec_rubikscuble_bis: Vec<DataRubiksCube> = Vec::new();
-        let mut best_cube: DataRubiksCube = DataRubiksCube{rubikscube: vec_rubikscuble[0].rubikscube.clone(), coups: vec![]};
-
-        for rubikcube_v in vec_rubikscuble {
-            
-            for axis in 0..3 {
-                
-                for lign in 0..3 {
-
-                    for tour in 0..3 {
-
-                        let coups = rubikcube_v.coups.clone();
-                        let tour_bis = if tour == 0 {2} else {0};
-
-                        if coups.len() >= 1 {
-                            if coups[coups.len()-1].prec_tour == tour_bis && coups[coups.len()-1].prec_axis == axis && coups[coups.len()-1].prec_lign == lign {
-                                continue;
-                            }
-                        }
-                        
-                        let mut rubikcube = rubikcube_v.rubikscube.clone();
-
-                        for _ in 0..tour+1 {
-                            
-                            match axis {
-                                0 => rubikcube.rotate_x(lign),
-                                1 => rubikcube.rotate_y(lign),
-                                _ => rubikcube.rotate_z(lign),
-                            }
-
-                        }
-
-                        if check && vec_rubikscuble_noire.contains(&rubikcube) {
-                            continue;
-                        }
-
-                        let mut coups = rubikcube_v.coups.clone();
-                        coups.push(CoupRubiksCube{prec_axis:axis, prec_lign:lign, prec_tour:tour});
-                        let point = rubikcube.point();
-                        vec_rubikscuble_bis.push(DataRubiksCube{rubikscube:rubikcube.clone(), coups: coups.clone()});
-
-                        if best_point < point {
-                            best_point = point;
-                            best_tour = tour+1;
-                            best_axis = axis;
-                            best_lign = lign;
-                            best_cube = DataRubiksCube{rubikscube:rubikcube.clone(), coups: coups.clone()};
-                        }
-                    }
-                }
-            }
-        }
-
-        (best_point, best_tour, best_axis, best_lign, vec_rubikscuble_bis, best_cube)
-    }
-
-    fn validate(&mut self) -> bool {
-
-        let mut valide = true;
-
-        for face in self.faces {
-            for line in face {
-                let color_r = line[0];
-                for color in line {
-                    if color != color_r {
-                        valide = false;
-                        break;
-                    }
-                }
-            }
-        }
-
-        
-        valide
-    }
-
-    
-}
-
-
-
-fn main() {
+    println!("Scramble ({depth}): {}", format_moves(&scramble));
+    println!("Start state:");
+    cube.display();
 
     let start = Instant::now();
+    let result = solve(
+        &cube,
+        &model,
+        &device,
+        SolveConfig {
+            max_nodes,
+            heuristic_weight: weight,
+        },
+    );
+    let elapsed = start.elapsed();
 
-    let mut cube = RubiksCube::new();
-    let mut liste_noireVec: Vec<RubiksCube> = Vec::new();
-    // let mut reward = 0;
-    for _ in 0..10000 {
-        cube.random_move();
-    }
-    
-    while !cube.validate() {
+    if result.solved {
+        println!(
+            "Solved in {} moves ({} nodes, {:?}): {}",
+            result.moves.len(),
+            result.nodes_expanded,
+            elapsed,
+            format_moves(&result.moves)
+        );
 
-        let (mut best_point, mut _best_tour, mut _best_axis, mut _best_lign, mut vec_rubikscuble, mut best_cube) = cube.prevision(vec![DataRubiksCube{rubikscube:cube.clone(), coups: vec![]}], &liste_noireVec, false);
-
-
-        for i in 0..3 {
-            (best_point, _best_tour, _best_axis, _best_lign, vec_rubikscuble, best_cube) = cube.prevision(vec_rubikscuble, &liste_noireVec, i==3);
+        if visual {
+            println!("Opening visual window (Esc to close)...");
+            animate_solution(cube.clone(), &result.moves, delay_ms);
         }
 
-        for _ in 0..best_cube.coups[0].prec_tour+1 {
-            match best_cube.coups[0].prec_axis {
-                0 => cube.rotate_x(best_cube.coups[0].prec_lign.clone()),
-                1 => cube.rotate_y(best_cube.coups[0].prec_lign.clone()),
-                _ => cube.rotate_z(best_cube.coups[0].prec_lign.clone()),
-            }
+        cube.apply_sequence(&result.moves);
+        println!("Final state:");
+        cube.display();
+        println!("is_solved = {}", cube.is_solved());
+    } else {
+        println!(
+            "No solution within {} nodes ({:?}).",
+            result.nodes_expanded, elapsed
+        );
+        if visual {
+            println!("Opening visual window with unsolved cube (Esc to close)...");
+            rubik_s_cube::show_cube(&cube, "Rubik's Cube — unsolved");
         }
-        
-        cube.display_color();
-        let nbr = cube.point();
-        println!("{:?}", nbr);
-        println!("{:?}", best_point);
-        liste_noireVec.push(cube.clone());
-        // thread::sleep(Duration::from_millis(1000));
     }
-    
-    cube.display_color();
-    println!("Durée d'exécution: {:?}", start.elapsed());
-    
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Train {
+            max_depth,
+            samples,
+            epochs,
+            batch_size,
+            lr,
+            out,
+        } => {
+            train(TrainConfig {
+                max_depth,
+                samples_per_depth: samples,
+                batch_size,
+                epochs_per_depth: epochs,
+                learning_rate: lr,
+                artifact_dir: out,
+            });
+        }
+        Commands::Solve {
+            depth,
+            model,
+            max_nodes,
+            weight,
+            visual,
+            delay_ms,
+        } => {
+            run_solve(depth, &model, max_nodes, weight, visual, delay_ms);
+        }
+        Commands::Demo {
+            depth,
+            train_depth,
+            no_visual,
+            delay_ms,
+        } => {
+            let out = "models".to_string();
+            train(TrainConfig {
+                max_depth: train_depth,
+                samples_per_depth: 1024,
+                batch_size: 64,
+                epochs_per_depth: 3,
+                learning_rate: 1e-3,
+                artifact_dir: out.clone(),
+            });
+            let model = PathBuf::from(format!("{out}/value_v1"));
+            let d = if depth == 0 {
+                1
+            } else {
+                rand::thread_rng().gen_range(1..=depth)
+            };
+            run_solve(d, &model, 20_000, 1.0, !no_visual, delay_ms);
+        }
+    }
 }
